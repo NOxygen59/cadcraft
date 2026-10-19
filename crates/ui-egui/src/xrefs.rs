@@ -19,16 +19,23 @@ pub fn route(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value,
     match cadcraft_engine::cmd::resolve_alias(id).as_str() {
         "xref" => Some(open_palette(app)),
         "xattach" => {
-            let picked = app.services.pick_open.as_ref().and_then(|f| f())?;
-            let path = relative_to_host(app, &picked);
-            if let Err(e) = app.session.start("xattach") {
-                return Some(Err(e.to_string()));
+            // A picker that answers later (iPad): XATTACH starts when the file is picked.
+            if app.services.pick_open.is_none() && app.services.start_pick.is_some() {
+                return crate::picks::open(app, |app, picked| attach(app, &picked));
             }
-            app.cmdline(&path);
-            Some(Ok(Value::Null))
+            let picked = app.services.pick_open.as_ref().and_then(|f| f())?;
+            Some(attach(app, &picked))
         }
         _ => None,
     }
+}
+
+/// Start XATTACH with the file picked.
+fn attach(app: &mut CadApp, picked: &str) -> Result<Value, String> {
+    let path = relative_to_host(app, picked);
+    app.session.start("xattach").map_err(|e| e.to_string())?;
+    app.cmdline(&path);
+    Ok(Value::Null)
 }
 
 /// Show the palette. The first time it docks below the Layers palette (where the palettes column

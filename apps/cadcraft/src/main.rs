@@ -16,6 +16,8 @@
 
 mod control_server;
 mod desktop_theme;
+#[cfg(target_os = "ios")]
+mod ios;
 #[cfg(any(target_os = "windows", test))]
 mod graphics;
 mod logging;
@@ -26,7 +28,9 @@ mod system_animations;
 mod workspace;
 
 use cadcraft_engine::Session;
-use cadcraft_ui_egui::{CadApp, Services, i18n};
+use cadcraft_ui_egui::{CadApp, Services};
+#[cfg(not(target_os = "ios"))]
+use cadcraft_ui_egui::i18n;
 
 struct App {
     cad: CadApp,
@@ -126,6 +130,7 @@ pub fn install_io() {
     });
 }
 
+#[cfg(not(target_os = "ios"))]
 fn services() -> Services {
     Services {
         pick_open: Some(Box::new(|| {
@@ -143,6 +148,20 @@ fn services() -> Services {
                 .save_file()
                 .map(|p| p.to_string_lossy().to_string())
         })),
+        ..Services::default()
+    }
+}
+
+/// iPadOS: the Files app's document picker over the window, which answers later; the menu bar's
+/// RAM / CPU / battery readout and its 60 / 120 Hz switch.
+#[cfg(target_os = "ios")]
+fn services(window: Option<std::sync::Arc<winit::window::Window>>, ui: egui::Context) -> Services {
+    Services {
+        start_pick: Some(Box::new(move |request| ios::start_pick(request, window.as_ref(), &ui))),
+        resources: Some(ios::resources),
+        set_max_frame_rate: Some(ios::set_max_frame_rate),
+        saved_max_frame_rate: Some(ios::saved_max_frame_rate),
+        ..Services::default()
     }
 }
 
@@ -150,6 +169,7 @@ fn services() -> Services {
 /// filter's extension, and macOS accepts only listed extensions, replacing any other with the
 /// first one. DWG must be listed for a `.dwg` name to survive, and a drawing opened from DWG
 /// then defaults to DWG; other names keep DXF first.
+#[cfg_attr(target_os = "ios", allow(dead_code))]
 fn filters_for_save(name: &str) -> [(&'static str, &'static str); 6] {
     let mut filters =
         [("Drawing (DXF)", "dxf"), ("Drawing (DWG)", "dwg"), ("Drawing Template (DWT)", "dwt"), ("SVG", "svg"), ("PNG", "png"), ("PDF", "pdf")];
@@ -172,7 +192,7 @@ fn config_dir_from(var: impl Fn(&str) -> Option<std::ffi::OsString>) -> Option<s
     if let Some(dir) = set("CADCRAFT_CONFIG_DIR") {
         return Some(dir);
     }
-    if cfg!(target_os = "macos") {
+    if cfg!(any(target_os = "macos", target_os = "ios")) {
         set("HOME").map(|h| h.join("Library/Application Support/CADCraft"))
     } else if cfg!(windows) {
         set("APPDATA").map(|a| a.join("CADCraft"))
@@ -258,7 +278,7 @@ fn main() -> eframe::Result {
         }
     }
     install_io();
-    let surface = cadcraft_ui_egui::gpu::surface_config(std::env::var("CADCRAFT_VSYNC").ok().as_deref(), cfg!(all(unix, not(target_os = "macos"))));
+    let surface = cadcraft_ui_egui::gpu::surface_config(std::env::var("CADCRAFT_VSYNC").ok().as_deref(), cfg!(all(unix, not(target_os = "macos"), not(target_os = "ios"))));
     let mut options = eframe::NativeOptions {
         // The crosshair is drawn by the app: present without a queue on Linux/BSD, where X11
         // swapchains hold two frames back under vsync (`CADCRAFT_VSYNC=1` restores vsync).
@@ -280,6 +300,12 @@ fn main() -> eframe::Result {
     if let Some(icon) = app_icon() {
         options.viewport = options.viewport.with_icon(icon);
     }
+    // iPadOS: eframe finds no data folder of its own, which would turn its storage off (the
+    // Options profile, preferences and the 60 / 120 Hz choice): keep it in the settings folder.
+    #[cfg(target_os = "ios")]
+    {
+        options.persistence_path = config_dir().map(|d| d.join("app.ron"));
+    }
     // Before eframe creates the wgpu instance: default Windows to DirectX 12 with FXC (see graphics.rs).
     #[cfg(target_os = "windows")]
     graphics::configure(&mut options, eframe::wgpu::Backends::from_env(), eframe::wgpu::Dx12Compiler::from_env());
@@ -291,13 +317,19 @@ fn main() -> eframe::Result {
         create.device_descriptor = std::sync::Arc::new(move |adapter| {
             let mut d = base(adapter);
             d.required_limits.max_buffer_size = d.required_limits.max_buffer_size.max(adapter.limits().max_buffer_size);
+            // iPadOS: ask no more than the GPU offers (the iOS Simulator's has fewer inter-stage
+            // shader variables than wgpu's defaults, and its device request fails otherwise).
+            #[cfg(target_os = "ios")]
+            {
+                d.required_limits = d.required_limits.clone().or_worse_values_from(&adapter.limits());
+            }
             d
         });
     }
     // winit has no file drag-and-drop on Wayland (only on X11), so dropping files from the file
     // manager showed a "no" cursor. Run through XWayland when it's there; CADCRAFT_WAYLAND=1
     // keeps the native Wayland backend.
-    #[cfg(all(unix, not(target_os = "macos")))]
+    #[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))]
     if std::env::var_os("DISPLAY").is_some() && std::env::var_os("CADCRAFT_WAYLAND").is_none() {
         options.event_loop_builder = Some(Box::new(|b| {
             use winit::platform::x11::EventLoopBuilderExtX11;
@@ -308,7 +340,11 @@ fn main() -> eframe::Result {
         "CADCraft",
         options,
         Box::new(move |cc| {
-            let mut app = CadApp::new(Session::empty(), services());
+            #[cfg(not(target_os = "ios"))]
+            let services = services();
+            #[cfg(target_os = "ios")]
+            let services = services(cc.winit_window().cloned(), cc.egui_ctx.clone());
+            let mut app = CadApp::new(Session::empty(), services);
             let (workspace, restored, workspace_error) = workspace::Workspace::load();
             if let Some(ui) = restored {
                 app.ui = ui;
@@ -432,7 +468,7 @@ mod tests {
         assert_eq!(config_dir_from(env(&[])), None);
     }
 
-    #[cfg(all(unix, not(target_os = "macos")))]
+    #[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))]
     #[test]
     fn linux_and_bsd_follow_xdg_config_home() {
         assert_eq!(config_dir_from(env(&[("XDG_CONFIG_HOME", "/x"), ("HOME", "/home/u")])), Some(PathBuf::from("/x/cadcraft")));

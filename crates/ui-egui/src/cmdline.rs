@@ -255,7 +255,7 @@ pub fn keyboard(app: &mut CadApp, ctx: &egui::Context) {
     let events = ctx.input(|i| i.events.clone());
     let selection = app.session.selection();
     app.cmd.watch_selection(&selection);
-    let mac = ctx.os() == egui::os::OperatingSystem::Mac;
+    let mac = ctx.os().is_mac();
     let text_prompt = app.session.current_prompt().is_some_and(|p| p.accept.text && !p.accept.point && !p.accept.number);
     options_still_fit(app);
     for ev in events {

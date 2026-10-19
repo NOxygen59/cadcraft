@@ -113,6 +113,7 @@ fn linetype(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
     let library: Vec<String> = cadcraft_doc::library::standard_linetypes().into_iter().map(|l| l.name).filter(|n| d.linetype(n).is_none()).collect();
     let mut sel = temp::<String>(ctx, "ltmgr_sel").filter(|s| rows.iter().any(|r| r.0.eq_ignore_ascii_case(s))).unwrap_or_else(|| current.clone());
     let mut action = None;
+    let mut from_file = false;
     egui::Window::new("Linetype Manager").open(open).default_size(vec2(520.0, 360.0)).resizable(true).show(ctx, |ui| {
         ui.horizontal(|ui| {
             egui::ComboBox::from_id_salt("ltmgr_load").selected_text("Load...").width(110.0).show_ui(ui, |ui| {
@@ -127,12 +128,18 @@ fn linetype(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
                     }
                 }
                 // The user's own .lin file (where the host has a file picker).
-                if let Some(pick) = app.services.pick_open.as_ref() {
+                if crate::picks::has_open(app) {
                     ui.separator();
-                    if ui.selectable_label(false, "From File...").clicked()
-                        && let Some(path) = pick()
-                    {
-                        action = Some(("linetype", json!({ "load": "*", "file": path })));
+                    if ui.selectable_label(false, "From File...").clicked() {
+                        match app.services.pick_open.as_ref() {
+                            Some(pick) => {
+                                if let Some(path) = pick() {
+                                    action = Some(("linetype", json!({ "load": "*", "file": path })));
+                                }
+                            }
+                            // A picker that answers later (iPad), asked once the window is drawn.
+                            None => from_file = true,
+                        }
                     }
                 }
             });
@@ -179,6 +186,10 @@ fn linetype(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
         });
     });
     set_temp(ctx, "ltmgr_sel", sel);
+    if from_file {
+        // `run` echoes errors on the command line.
+        let _ = crate::picks::open(app, |app, path| app.run("linetype", json!({ "load": "*", "file": path })));
+    }
     action
 }
 
@@ -1029,6 +1040,36 @@ fn plot(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
     }
     if ok {
         let mut params = plot_params(&st, None);
+        // A picker that answers later (iPad): the dialog closes while it is up, and comes back
+        // with its settings after Cancel or a failed plot.
+        if app.services.pick_save.is_none() && app.services.start_pick.is_some() {
+            let title = app.session.state().map(|s| s.title.clone()).unwrap_or_default();
+            let stem = std::path::Path::new(&title).file_stem().map(|s| s.to_string_lossy().to_string()).filter(|s| !s.is_empty());
+            let suggested = format!("{}-{}.{ext}", stem.unwrap_or_else(|| "Drawing".into()), st.target);
+            let target = st.target.clone();
+            *open = false;
+            let _ = crate::picks::save_or_cancel(app, &suggested, move |app, picked| {
+                let Some(path) = picked else {
+                    app.ui.dialog = Some("plot".into());
+                    return Ok(Value::Null);
+                };
+                if let Some(o) = params.as_object_mut() {
+                    o.insert("path".into(), json!(path));
+                }
+                match app.run("plot", params) {
+                    Ok(r) => {
+                        app.session.echo(format!("Plotted {target} to {path}"));
+                        Ok(r)
+                    }
+                    // `run` already echoed the error; reopen the dialog to fix the settings.
+                    Err(_) => {
+                        app.ui.dialog = Some("plot".into());
+                        Ok(Value::Null)
+                    }
+                }
+            });
+            return action;
+        }
         if let Some(pick) = app.services.pick_save.as_ref() {
             let title = app.session.state().map(|s| s.title.clone()).unwrap_or_default();
             let stem = std::path::Path::new(&title).file_stem().map(|s| s.to_string_lossy().to_string()).filter(|s| !s.is_empty());

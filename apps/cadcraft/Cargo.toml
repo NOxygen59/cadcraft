@@ -14,7 +14,7 @@ workspace = true
 cadcraft-engine = { workspace = true }
 cadcraft-ui-egui = { workspace = true }
 cadcraft-io = { workspace = true }
-eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "links", "persistence"] }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "links", "persistence"] }
 egui = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
@@ -22,7 +22,9 @@ log = { workspace = true }
 [build-dependencies]
 winresource = "0.1"
 
-[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+# Linux and the BSDs (iOS is unix too, but has neither X11/Wayland nor the XDG portal).
+[target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))'.dependencies]
+eframe = { workspace = true, features = ["wayland", "x11"] }
 winit = { version = "0.30", default-features = false, features = ["x11"] }
 # View ▸ Theme ▸ System: the desktop's light/dark choice from the XDG desktop portal
 # (desktop_theme.rs). Already in Cargo.lock through accesskit; pinned to that version so nothing
@@ -30,8 +32,21 @@ winit = { version = "0.30", default-features = false, features = ["x11"] }
 zbus = { version = "=5.19.0", default-features = false, features = ["async-io", "blocking-api"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-rfd = { workspace = true }
 sys-locale = "0.3"
+
+# Desktop file dialogs; iPadOS uses the Files app's document picker instead (src/ios.rs).
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "ios")))'.dependencies]
+rfd = { workspace = true }
+
+# iPadOS (src/ios.rs): the document picker, the window's view, the readings of the title bar's
+# resource readout, and winit's frame-rate cap (vendor/winit).
+[target.'cfg(target_os = "ios")'.dependencies]
+winit = { version = "0.30", default-features = false }
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }
+objc2-ui-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-uniform-type-identifiers", "UIApplication", "UIDevice", "UIDocumentPickerViewController", "UIResponder", "UIView", "UIViewController", "UIWindow"] }
+objc2-uniform-type-identifiers = { version = "0.3", default-features = false, features = ["std", "UTType", "UTCoreTypes"] }
+libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 muda = { version = "0.21", default-features = false }

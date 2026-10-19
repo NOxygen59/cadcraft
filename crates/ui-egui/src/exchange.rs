@@ -23,27 +23,18 @@ pub fn route(app: &mut CadApp, id: &str) -> Result<Value, String> {
             app.ui.dialog = Some("preview".into());
             Ok(Value::Null)
         }
-        "import" | "imp" => {
-            let Some(pick) = app.services.pick_open.as_ref() else { return no_picker(app, "IMPORT", r#"import {"path": "parts.dxf"}"#) };
-            match pick() {
-                Some(path) => app.run("import", json!({ "path": path })),
-                None => Ok(Value::Null),
-            }
-        }
-        "publish" => {
-            let Some(pick) = app.services.pick_save.as_ref() else { return no_picker(app, "PUBLISH", "publish {}") };
-            match pick(&format!("{stem}.pdf")) {
-                Some(path) => app.run("publish", json!({ "path": path })),
-                None => Ok(Value::Null),
-            }
-        }
-        _ => {
-            let Some(pick) = app.services.pick_save.as_ref() else { return no_picker(app, "EXPORT", r#"export {"format": "svg"}"#) };
-            match pick(&format!("{stem}.svg")) {
-                Some(path) => app.run("export", json!({ "path": path })),
-                None => Ok(Value::Null),
-            }
-        }
+        "import" | "imp" => match crate::picks::open(app, |app, path| app.run("import", json!({ "path": path }))) {
+            Some(r) => r,
+            None => no_picker(app, "IMPORT", r#"import {"path": "parts.dxf"}"#),
+        },
+        "publish" => match crate::picks::save(app, &format!("{stem}.pdf"), |app, path| app.run("publish", json!({ "path": path }))) {
+            Some(r) => r,
+            None => no_picker(app, "PUBLISH", "publish {}"),
+        },
+        _ => match crate::picks::save(app, &format!("{stem}.svg"), |app, path| app.run("export", json!({ "path": path }))) {
+            Some(r) => r,
+            None => no_picker(app, "EXPORT", r#"export {"format": "svg"}"#),
+        },
     }
 }
 
@@ -176,6 +167,7 @@ mod tests {
                 b.borrow_mut().push(name.to_string());
                 None
             })),
+            ..Services::default()
         };
         (CadApp::new(Session::new(), services), asked)
     }

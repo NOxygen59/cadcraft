@@ -145,52 +145,47 @@ fn run_ui_command_inner(app: &mut CadApp, id: &str, params: &Value) -> Option<Re
             }
             Ok(json!({"interfaceLanguage": preference.code(), "shown": shown}))
         }
-        "ui.open" | "open" if no_path => {
-            let picked = app.services.pick_open.as_ref().and_then(|f| f());
-            if let Some(p) = picked {
-                app.open_path(&p);
-            }
+        "ui.open" | "open" if no_path => crate::picks::open(app, |app, p| {
+            app.open_path(&p);
             Ok(Value::Null)
-        }
+        })
+        .unwrap_or(Ok(Value::Null)),
         // Pick a template (.dwt or .dxf) and start a new drawing from it.
-        "ui.newtemplate" => {
-            if let Some(p) = app.services.pick_open.as_ref().and_then(|f| f()) {
-                return Some(app.session.execute("new", &json!({ "template": p })).map_err(|e| e.to_string()));
-            }
-            Ok(Value::Null)
-        }
+        "ui.newtemplate" => crate::picks::open(app, |app, p| app.session.execute("new", &json!({ "template": p })).map_err(|e| e.to_string()))
+            .unwrap_or(Ok(Value::Null)),
         // RECOVER from the menu or typed: pick the file. Without a picker the engine asks for the
         // file name on the command line.
-        "recover" if no_path && app.services.pick_open.is_some() => {
-            if let Some(p) = app.services.pick_open.as_ref().and_then(|f| f()) {
-                let r = app.run("recover", json!({ "path": p }));
-                app.opened(r);
-            }
+        "recover" if no_path && crate::picks::has_open(app) => crate::picks::open(app, |app, p| {
+            let r = app.run("recover", json!({ "path": p }));
+            app.opened(r);
             Ok(Value::Null)
-        }
+        })
+        .unwrap_or(Ok(Value::Null)),
         "ui.saveas" | "saveas" if no_path => {
             let title = app.session.state().map(|s| s.title.clone()).ok();
             let name = app.ui.save_format.suggested_name(title.as_deref());
-            if let Some(p) = app.services.pick_save.as_ref().and_then(|f| f(&name)) {
-                return Some(app.session.execute("saveas", &saveas_params(&app.ui, &app.session, &p)).map_err(|e| e.to_string()));
-            }
-            Ok(Value::Null)
+            crate::picks::save(app, &name, |app, p| app.session.execute("saveas", &saveas_params(&app.ui, &app.session, &p)).map_err(|e| e.to_string()))
+                .unwrap_or(Ok(Value::Null))
         }
         "qsave" if no_path && app.session.state().is_ok_and(|s| s.path.is_none()) => return run_ui_command(app, "ui.saveas", &Value::Null),
         // EXPORTPDF from the menu or typed: ask where to save the PDF (PLOT and PRINT open the Plot
         // dialog, `managers::route`). JSON calls (scripts, control channel, MCP) always carry
         // params, never get here and never open a dialog.
         "exportpdf" if params.is_null() && app.session.state().is_ok() => {
-            let pick = app.services.pick_save.as_ref()?;
+            if !crate::picks::has_save(app) {
+                return None;
+            }
             let title = app.session.state().map(|s| s.title.clone()).unwrap_or_default();
             let stem = std::path::Path::new(&title).file_stem().map(|s| s.to_string_lossy().to_string()).filter(|s| !s.is_empty());
-            let Some(path) = pick(&format!("{}.pdf", stem.unwrap_or_else(|| "Drawing".into()))) else { return Some(Ok(Value::Null)) };
-            let r = app.session.execute("exportpdf", &json!({ "path": path })).map_err(|e| e.to_string());
-            app.session.echo(match &r {
-                Ok(_) => format!("Plotted to {path}"),
-                Err(e) => e.clone(),
-            });
-            r
+            crate::picks::save(app, &format!("{}.pdf", stem.unwrap_or_else(|| "Drawing".into())), |app, path| {
+                let r = app.session.execute("exportpdf", &json!({ "path": path })).map_err(|e| e.to_string());
+                app.session.echo(match &r {
+                    Ok(_) => format!("Plotted to {path}"),
+                    Err(e) => e.clone(),
+                });
+                r
+            })
+            .unwrap_or(Ok(Value::Null))
         }
         "ui.sample" => {
             let d = cadcraft_engine::sample::default_sample();
@@ -584,6 +579,10 @@ pub fn menu_bar(app: &mut CadApp, ui: &mut egui::Ui) {
                         }
                     });
                 }
+                // iPad: RAM / CPU / battery and the 60 / 120 Hz switch at the right end.
+                if app.services.resources.is_some() {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| crate::resource_readout::show(app, ui));
+                }
             });
         },
     );
@@ -718,6 +717,7 @@ mod tests {
                 log.borrow_mut().push(name.to_string());
                 answer.clone()
             })),
+            ..Services::default()
         };
         (CadApp::new(Session::new(), services), asked)
     }

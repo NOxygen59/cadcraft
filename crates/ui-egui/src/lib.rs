@@ -40,9 +40,11 @@ pub mod menus;
 pub mod opening;
 pub mod options;
 pub mod palettes;
+pub mod picks;
 pub mod parametric;
 pub mod plotstyles;
 pub mod quick;
+pub mod resource_readout;
 pub mod shortcut_menus;
 pub mod theme;
 pub mod viewcube;
@@ -184,11 +186,34 @@ impl Default for UiState {
     }
 }
 
+/// A reading of what the app uses, for the menu bar's readout ([`Services::resources`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ResourceReading {
+    /// The app's memory footprint in bytes.
+    pub memory_bytes: u64,
+    /// The app's share of all CPU cores, 0–100.
+    pub cpu_percent: f32,
+    /// The device's battery level, 0–100, when known.
+    pub battery_percent: Option<f32>,
+    pub charging: bool,
+}
+
 /// Host services (file pickers, clipboard) injected by the app so this crate stays portable.
 #[derive(Default)]
 pub struct Services {
     pub pick_open: Option<Box<dyn Fn() -> Option<String>>>,
     pub pick_save: Option<Box<dyn Fn(&str) -> Option<String>>>,
+    /// Pickers that answer later (iPadOS's document picker), where `pick_open` and `pick_save`
+    /// are unset ([`picks`]).
+    pub start_pick: Option<picks::StartPick>,
+    /// What the app itself uses (memory, CPU) and the battery level, shown at the right of the
+    /// menu bar (iPad). Read every two seconds.
+    pub resources: Option<fn() -> ResourceReading>,
+    /// Caps redraws per second (60 or 120 on a ProMotion iPad), switched from the menu bar; the
+    /// host remembers the choice.
+    pub set_max_frame_rate: Option<fn(u32)>,
+    /// The cap chosen last time (60 when never chosen).
+    pub saved_max_frame_rate: Option<fn() -> u32>,
 }
 
 pub struct CadApp {
@@ -248,6 +273,8 @@ pub struct CadApp {
     pub hatch_dlg: Option<hatchdlg::HatchDlgState>,
     /// The Edit Block Definition dialog ([`bedit`]).
     pub bedit: bedit::State,
+    /// A file picker that answers later, and what asked for it ([`picks`]).
+    pub(crate) picks: picks::Pending,
 }
 
 impl CadApp {
@@ -288,6 +315,7 @@ impl CadApp {
             alias_dlg: None,
             hatch_dlg: None,
             bedit: bedit::State::default(),
+            picks: picks::Pending::default(),
         }
     }
 
@@ -536,6 +564,7 @@ impl CadApp {
     pub fn logic(&mut self, ctx: &egui::Context) {
         // A long LISP routine runs a slice per frame, so the window stays live (and Esc stops it).
         self.session.lisp_tick();
+        picks::poll(self);
         if self.session.lisp_busy() {
             ctx.request_repaint();
         }

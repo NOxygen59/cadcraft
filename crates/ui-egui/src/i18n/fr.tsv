@@ -1008,3 +1008,10 @@
 	Not a number or distance: {text}	Ni un nombre ni une distance : {text}
 	Query Texts	Interroger les textes
 	Analyze Shapes	Analyser les formes
+	RAM	RAM
+	CPU	CPU
+	Battery	Batterie
+	{n} MB	{n} Mo
+	{n} GB	{n} Go
+	Maximum frame rate: 60 Hz saves battery and heat, 120 Hz is smoother. Tap to switch.	Fréquence d'images maximale : 60 Hz économise la batterie et chauffe moins, 120 Hz est plus fluide. Touchez pour changer.
+	Memory and processor used by CADCraft itself, and the battery level. Updated every 2 seconds.	Mémoire et processeur utilisés par CADCraft lui-même, et niveau de batterie. Actualisé toutes les 2 secondes.

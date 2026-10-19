@@ -56,8 +56,17 @@ egui-wgpu = "0.36"
 rfd = "0.17"
 arboard = { version = "3.6", default-features = false }
 
+# iPadOS: winit 0.30.13 with an iOS backend for hardware keyboards, trackpads, the Pencil, finger
+# gestures and windowed apps, plus a 60/120 Hz frame cap (vendor/winit/IOS-CHANGES.md); egui-winit
+# with ⌘ as Command and cancelled touches released. Other platforms build them as released.
+[patch.crates-io]
+winit = { path = "vendor/winit" }
+egui-winit = { path = "vendor/egui-winit" }
+
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# iPad port: "deny" rather than "forbid", so the iPadOS module (UIKit's document picker
+# delegate, the window's raw view, rusage) can allow it in its own scope.
+unsafe_code = "deny"
 
 [workspace.lints.clippy]
 dbg_macro = "warn"

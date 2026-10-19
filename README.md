@@ -1,3 +1,51 @@
+> [!WARNING]
+> **Projet personnel « vibecodé ».** Tout le code de ce dépôt (ou, pour un fork, toutes les modifications) a été écrit par **Claude** (Anthropic, via Claude Code), à la demande spécifique de [@NOxygen59](https://github.com/NOxygen59), pour **son appareil précis** :
+>
+> **iPad Pro 12,9" 5ᵉ génération (puce M1) — 512 Go de stockage, 8 Go de RAM — iOS 16.6.1, jailbreak Dopamine (rootless) + TrollStore.**
+>
+> Rien n'est testé ni prévu pour un autre appareil. Pas de support, pas de feuille de route : c'est un dépôt d'archive personnel, publié pour pouvoir reprendre le travail plus tard (modifications, mises à jour).
+
+**Fork** de [storytold/cadcraft](https://github.com/storytold/cadcraft) (base : commit `0b32c2e`, version 0.9.0), porté sur **iPad / iOS 16** (`.tipa` pour TrollStore). Toutes les modifications sont sur la branche `ipad-ios16`.
+
+**Licence :** celle d'origine, MIT ou Apache-2.0 au choix (voir [LICENSE-MIT](LICENSE-MIT) et [LICENSE-APACHE](LICENSE-APACHE)). Elle couvre aussi les modifications. Aucune licence n'est ajoutée.
+
+### Modifications pour iPad
+- **iOS** :
+  - fichiers par le sélecteur de l'app Fichiers (UIDocumentPicker) : ouvrir, enregistrer sous, importer, exporter, PDF, tracé, XATTACH, types de ligne (`apps/cadcraft/src/ios.rs`) ;
+  - ce sélecteur répond plus tard (pas de boucle modale sur iOS) : ce qui l'a demandé reprend avec le fichier choisi (`crates/ui-egui/src/picks.rs`) ; sur ordinateur rien ne change ;
+  - le dossier Documents de l'app apparaît dans Fichiers (Sur mon iPad › CADCraft) ;
+  - préférences, journaux et sauvegardes auto dans Library/Application Support ;
+  - polices japonaises, chinoises et coréennes du système (noms de fichiers, calques et présentations sans carrés) ;
+  - rfd, zbus, Wayland et X11 exclus d'iOS.
+- **`vendor/winit`** (0.30.13 patché, détail dans [vendor/winit/IOS-CHANGES.md](vendor/winit/IOS-CHANGES.md)) :
+  - clavier physique avec répétition des touches ;
+  - trackpad : survol, défilement, pincement ;
+  - zones cliquables justes en fenêtré (tweak Aerial, Stage Manager).
+- **Gestes, d'après Apple TouchCanvas et Procreate** :
+  - zoom et déplacement à deux doigts (le glissement à deux doigts déplace la vue, comme sur un trackpad de Mac) ;
+  - tap à deux doigts = annuler, à trois = rétablir ;
+  - rejet de la paume par iPadOS.
+- **`vendor/egui-winit`** : ⌘ = Commande, et une touche annulée relâche le bouton.
+- **Clavier** : raccourcis ⌘ comme sur Mac, et la touche ⌫ efface la sélection (pas de touche Suppr sur le Magic Keyboard).
+- **Économie d'énergie** : le rendu est plafonné à 60 images par seconde (au lieu de 120 sur un écran ProMotion). Un bouton **60 Hz / 120 Hz** à droite de la barre de menus bascule à la volée, et le choix est gardé d'un lancement à l'autre (`vendor/winit`, `frame_gate`).
+- **Indicateur de ressources** : à droite de la barre de menus, la RAM et le CPU utilisés par CADCraft lui-même, plus le niveau de batterie de l'iPad (`crates/ui-egui/src/resource_readout.rs`). Mis à jour toutes les 2 secondes, et il se réduit dans une fenêtre étroite.
+- **Pas de boutons façon Windows** (réduire / agrandir / fermer) : CADCraft n'en dessine pas sur iPad.
+- **Build** : `packaging/ios/` (`.tipa`, iOS 16.0 minimum).
+
+![CADCraft sur iPad (simulateur) : un plan ouvert depuis Fichiers, nom de fichier japonais](docs/ipad-ios16/ipad-plan.png)
+
+### Versions
+
+Ce fork a sa propre numérotation, « CADCraft iPad », en parallèle de celle de CADCraft officiel :
+
+| CADCraft iPad | Basé sur CADCraft | Release | Contenu |
+|---|---|---|---|
+| 1.0 | 0.9.0 | [v0.9.0-ios16](https://github.com/NOxygen59/cadcraft/releases/tag/v0.9.0-ios16) | Portage iPad, Fichiers, gestes (zoom, annuler/rétablir), rejet de la paume, Aerial, 60/120 Hz, indicateur RAM / CPU / batterie, polices CJK |
+
+**Builds :** voir les [Releases](https://github.com/NOxygen59/cadcraft/releases).
+
+---
+
 <p align="center">
   <a href="https://getartcraft.com/">
     <picture>

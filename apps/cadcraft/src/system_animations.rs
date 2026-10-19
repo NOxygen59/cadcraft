@@ -80,7 +80,7 @@ impl SystemAnimations {
 }
 
 /// Where the answer comes over D-Bus, which can block: a thread asks. Elsewhere the UI thread asks.
-const ASKS_THE_PORTAL: bool = cfg!(all(unix, not(target_os = "macos")));
+const ASKS_THE_PORTAL: bool = cfg!(all(unix, not(target_os = "macos"), not(target_os = "ios")));
 
 /// Ask Windows once: `UISettings::AnimationsEnabled`, the setting behind
 /// `SPI_GETCLIENTAREAANIMATION`.
@@ -97,7 +97,7 @@ fn read() -> Option<bool> {
 
 /// Ask the portal once. D-Bus calls block, so this belongs off the UI thread: the watcher's
 /// thread is its only caller.
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))]
 fn read() -> Option<bool> {
     const PORTAL: &str = "org.freedesktop.portal.Desktop";
     const PATH: &str = "/org/freedesktop/portal/desktop";
@@ -124,7 +124,7 @@ fn read() -> Option<bool> {
 /// The portal's answer as "show animations": `reduced-motion` is a number (1 asks for less
 /// motion; 0 and values from a later version state no preference), `enable-animations` a
 /// boolean. `None` when it reads as neither. Variants are unwrapped a few levels deep.
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))]
 fn parse(value: &zbus::zvariant::Value<'_>, depth: u8) -> Option<bool> {
     use zbus::zvariant::Value;
     match value {
@@ -135,7 +135,7 @@ fn parse(value: &zbus::zvariant::Value<'_>, depth: u8) -> Option<bool> {
     }
 }
 
-#[cfg(not(any(unix, windows)))]
+#[cfg(any(target_os = "ios", not(any(unix, windows))))]
 fn read() -> Option<bool> {
     None
 }
@@ -162,7 +162,7 @@ mod tests {
     /// The standard key answers a number, GNOME's switch a boolean; either may come wrapped in
     /// variants (the older `Read`).
     #[test]
-    #[cfg(all(unix, not(target_os = "macos")))]
+    #[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))]
     fn the_portal_answer_reads_as_show_animations_or_as_none() {
         use zbus::zvariant::Value;
         assert_eq!(parse(&Value::U32(1), 0), Some(false));

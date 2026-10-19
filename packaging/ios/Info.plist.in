@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template: packaging/ios/package.sh substitutes @SHORT_VERSION@, @VERSION@ and @BUILD_SHA@. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>CADCraft</string>
+  <key>CFBundleName</key>
+  <string>CADCraft</string>
+  <key>CFBundleExecutable</key>
+  <string>CADCraft</string>
+  <key>CFBundleIdentifier</key>
+  <string>ai.storyteller.cadcraft.ios</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>@SHORT_VERSION@</string>
+  <key>CFBundleVersion</key>
+  <string>@SHORT_VERSION@</string>
+  <key>CADCraftVersion</key>
+  <string>@VERSION@</string>
+  <key>CADCraftBuildCommit</key>
+  <string>@BUILD_SHA@</string>
+  <key>CFBundleSupportedPlatforms</key>
+  <array><string>iPhoneOS</string></array>
+  <!-- Must match IPHONEOS_DEPLOYMENT_TARGET in package.sh. -->
+  <key>MinimumOSVersion</key>
+  <string>16.0</string>
+  <key>LSRequiresIPhoneOS</key>
+  <true/>
+  <!-- iPad only: the AutoCAD-style interface needs the room. -->
+  <key>UIDeviceFamily</key>
+  <array><integer>2</integer></array>
+  <key>UIRequiredDeviceCapabilities</key>
+  <array><string>arm64</string><string>metal</string></array>
+  <!-- Without a launch screen iPadOS runs the app letterboxed at a legacy size. -->
+  <key>UILaunchScreen</key>
+  <dict/>
+  <!-- Not full screen only: Split View, Slide Over, Stage Manager and floating-window tweaks
+       (Aerial) can size the app; winit sizes the drawing from its view. -->
+  <key>UIStatusBarHidden</key>
+  <true/>
+  <key>UIViewControllerBasedStatusBarAppearance</key>
+  <false/>
+  <key>UIApplicationSupportsIndirectInputEvents</key>
+  <true/>
+  <key>UISupportedInterfaceOrientations~ipad</key>
+  <array>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationPortraitUpsideDown</string>
+  </array>
+  <!-- The app's Documents folder shows in Files (On My iPad › CADCraft). -->
+  <key>UIFileSharingEnabled</key>
+  <true/>
+  <key>LSSupportsOpeningDocumentsInPlace</key>
+  <true/>
+  <key>CFBundleIcons~ipad</key>
+  <dict>
+    <key>CFBundlePrimaryIcon</key>
+    <dict>
+      <key>CFBundleIconFiles</key>
+      <array><string>AppIcon76x76</string><string>AppIcon83.5x83.5</string></array>
+      <key>CFBundleIconName</key>
+      <string>AppIcon</string>
+    </dict>
+  </dict>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright © the CADCraft authors. MIT OR Apache-2.0.</string>
+  <!-- Drawings CADCraft opens: open in place from Files. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Drawing</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array><string>com.autodesk.dwg</string><string>com.autodesk.dxf</string><string>public.data</string></array>
+    </dict>
+  </array>
+</dict>
+</plist>

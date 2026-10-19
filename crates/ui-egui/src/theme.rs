@@ -430,6 +430,10 @@ pub fn cjk_font() -> Option<&'static std::path::Path> {
         static FOUND: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
         FOUND
             .get_or_init(|| {
+                // iPadOS moves its CJK fonts between releases: found by file name.
+                if cfg!(target_os = "ios") {
+                    return ios_font(&["pingfangui", "pingfang", "hiraginosansgb"]);
+                }
                 let candidates: &[&str] = if cfg!(target_os = "macos") {
                     &["/System/Library/Fonts/PingFang.ttc", "/System/Library/Fonts/STHeiti Light.ttc", "/System/Library/Fonts/Hiragino Sans GB.ttc"]
                 } else if cfg!(windows) {
@@ -506,6 +510,9 @@ fn japanese_font() -> Option<&'static std::path::Path> {
         static FOUND: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
         FOUND
             .get_or_init(|| {
+                if cfg!(target_os = "ios") {
+                    return ios_font(&["hiraginokakugothic", "hiraginosans"]);
+                }
                 let candidates: &[&str] = if cfg!(target_os = "macos") {
                     &["/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", "/System/Library/Fonts/Hiragino Sans GB.ttc"]
                 } else if cfg!(windows) {
@@ -524,6 +531,37 @@ fn japanese_font() -> Option<&'static std::path::Path> {
     }
     #[cfg(target_arch = "wasm32")]
     None
+}
+
+/// The first font file under iPadOS's system font folders whose name (lowercased, without
+/// spaces) contains one of `patterns`, tried in order. The folders are listed once.
+#[cfg(not(target_arch = "wasm32"))]
+fn ios_font(patterns: &[&str]) -> Option<std::path::PathBuf> {
+    static FILES: std::sync::OnceLock<Vec<std::path::PathBuf>> = std::sync::OnceLock::new();
+    let files = FILES.get_or_init(|| {
+        let mut out = Vec::new();
+        let mut dirs: Vec<std::path::PathBuf> =
+            ["/System/Library/Fonts", "/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate"].iter().map(Into::into).collect();
+        // Fonts/Core, Fonts/CoreAddition, … : a few levels, bounded so a strange tree can't stall.
+        for _ in 0..3 {
+            let mut next = Vec::new();
+            for dir in dirs {
+                let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+                for path in entries.flatten().map(|e| e.path()) {
+                    if path.is_dir() {
+                        next.push(path);
+                    } else if matches!(path.extension().and_then(|x| x.to_str()).map(str::to_ascii_lowercase).as_deref(), Some("ttc" | "ttf" | "otf")) {
+                        out.push(path);
+                    }
+                }
+            }
+            dirs = next;
+        }
+        out.sort();
+        out
+    });
+    let name = |p: &std::path::Path| p.file_name().and_then(|n| n.to_str()).map(|n| n.to_ascii_lowercase().replace(' ', "")).unwrap_or_default();
+    patterns.iter().find_map(|pattern| files.iter().find(|p| name(p).contains(pattern)).cloned())
 }
 
 /// The Hangul letters the Korean interface shows: its catalog and its own name.
@@ -615,6 +653,13 @@ pub fn korean_font() -> Option<&'static cadcraft_fonts::ttf::Face> {
                         "/usr/local/share/fonts/noto/NotoSansCJK-Regular.ttc",
                     ]
                 };
+                if cfg!(target_os = "ios")
+                    && let Some(face) = ios_font(&["applesdgothicneo"])
+                        .and_then(|p| read_capped(&p, MAX_UI_FONT_BYTES))
+                        .and_then(|bytes| korean_face(std::sync::Arc::new(bytes)))
+                {
+                    return Some(face);
+                }
                 for path in candidates {
                     if let Some(face) =
                         read_capped(std::path::Path::new(path), MAX_UI_FONT_BYTES).and_then(|bytes| korean_face(std::sync::Arc::new(bytes)))

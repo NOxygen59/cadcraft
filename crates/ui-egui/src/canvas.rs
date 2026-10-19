@@ -1394,7 +1394,7 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
     ui.input(|i| {
         for e in &i.raw.events {
             if let egui::Event::MouseWheel { unit, .. } = e {
-                app.canvas.scroll_pans = cfg!(target_os = "macos") && *unit == egui::MouseWheelUnit::Point;
+                app.canvas.scroll_pans = cfg!(any(target_os = "macos", target_os = "ios")) && *unit == egui::MouseWheelUnit::Point;
             }
         }
     });

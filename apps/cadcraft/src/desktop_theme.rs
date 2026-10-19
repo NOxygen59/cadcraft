@@ -72,11 +72,11 @@ impl DesktopTheme {
 }
 
 /// Where winit has no answer and the portal does.
-const ASKS_THE_DESKTOP: bool = cfg!(all(unix, not(target_os = "macos")));
+const ASKS_THE_DESKTOP: bool = cfg!(all(unix, not(target_os = "macos"), not(target_os = "ios")));
 
 /// Ask the portal once. D-Bus calls block, so this belongs off the UI thread: the watcher's
 /// thread is its only caller.
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))]
 fn read() -> Option<egui::Theme> {
     const PORTAL: &str = "org.freedesktop.portal.Desktop";
     const PATH: &str = "/org/freedesktop/portal/desktop";
@@ -102,7 +102,7 @@ fn read() -> Option<egui::Theme> {
 
 /// The portal's `color-scheme` answer: `Some(choice)` when it read as an answer (`Some(None)`
 /// for "no preference"), `None` when it didn't. Variants are unwrapped a few levels deep.
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))]
 fn parse(value: &zbus::zvariant::Value<'_>, depth: u8) -> Option<Option<egui::Theme>> {
     use zbus::zvariant::Value;
     match value {
@@ -119,7 +119,7 @@ fn parse(value: &zbus::zvariant::Value<'_>, depth: u8) -> Option<Option<egui::Th
     }
 }
 
-#[cfg(not(all(unix, not(target_os = "macos"))))]
+#[cfg(not(all(unix, not(target_os = "macos"), not(target_os = "ios"))))]
 fn read() -> Option<egui::Theme> {
     None
 }
@@ -131,7 +131,7 @@ mod tests {
     /// The standard key answers a number, GNOME's schema a string; either may come wrapped in
     /// variants (the older `Read`). Only "dark" and "light" are a choice.
     #[test]
-    #[cfg(all(unix, not(target_os = "macos")))]
+    #[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))]
     fn the_portal_answer_reads_as_a_choice_or_as_none() {
         use zbus::zvariant::Value;
         assert_eq!(parse(&Value::U32(1), 0), Some(Some(egui::Theme::Dark)));
